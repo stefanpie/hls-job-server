@@ -1,0 +1,20 @@
+[project]
+name = "hls-job-server"
+version = "0.1.0"
+description = "A job server for running High Level Synthesis tools"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = ["flask>=3.1.0"]
+
+
+[project.scripts]
+hls = "hls_job_server.main:cli"
+
+[build-system]
+requires = ["setuptools"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+
+[tool.uv]
+dev-dependencies = ["pytest>=8.3.4", "ruff>=0.8.2", "mypy"]

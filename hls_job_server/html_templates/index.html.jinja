@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HLS Job Server</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      background-color: whitesmoke;
+      padding: 4em;
+    }
+
+    h1 {
+      background-color: #333;
+      color: whitesmoke;
+      padding: 10px;
+      margin: 0;
+    }
+
+    p {}
+
+    a {
+      text-decoration: none;
+      font-weight: bold;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    .inline-code {
+      background-color: whitesmoke;
+      border: 1px solid #333;
+      padding-left: 4px;
+      padding-right: 4px;
+      border-radius: 4px;
+      font-family: monospace;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>HLS Job Server</h1>
+
+  <p>This is the HLS job Server. It provides a REST API and simple HTML interface for running High-Level Synthesis (HLS)
+    tools.</p>
+
+  <h2>Tools</h2>
+
+  <p><b>Available Tools <span class="inline-code"><a href="/tools">/tools</a></span></b></p>
+  <p>
+    {% for tool_name, tool in tools.items() if tool is not none %}
+    <span class="inline-code"><a href="/tools/{{ tool_name }}">{{ tool_name }}</a></span>
+    {% endfor %}
+  </p>
+
+  <p><b>Unavailable tools</b></p>
+  <p>
+    {% for (tool_name, tool) in tools.items() if tool is none %}
+    <span class="inline-code">{{ tool_name }}</span>
+    {% endfor %}
+  </p>
+
+  <h2>Submit a Job</h2>
+  <p>You can submit a job below by uploading a zip file of your HLS project directory. This should include the source
+    files, testbench, configuration files, and entry point scripts for a given HLS tool.</p>
+
+  <p>Choose a tool and upload a zip file to run HLS simulation or HLS synthesis.</p>
+
+  <form>
+    <label for="tool">Select a Tool:</label>
+    <br>
+    {% for tool_name, tool in tools.items() if tool is not none %} <input type="radio" id="{{ tool_name }}" name="tool"
+      value="{{ tool_name }}">
+    <span class="inline-code"><label for="{{ tool_name }}">{{ tool_name }}</label></span>
+    {% endfor %}
+
+    <br><br>
+
+    <label for="zipfile">Select a Project Zip File:</label>
+    <br>
+    <input type="file" id="zipfile" name="zipfile" accept=".zip">
+
+    <br>
+    <p>Select a Submission Type:</p>
+    <input type="radio" id="run_simulation" name="submit" value="run_simulation">
+    <label for="run_simulation">run_simulation</label>
+    <br>
+    <input type="radio" id="run_synthesis" name="submit" value="run_synthesis">
+    <label for="run_synthesis">run_synthesis</label>
+    <br>
+
+    <p>Click the submit button to run the job.</p>
+    <input type="submit" value="Submit">
+
+  </form>
+  <br>
+  <p>Status: <span id="status" class="inline-code">Idle</span></p>
+  <button id="downloadButton" disabled>Download Run Project</button>
+  <script>
+    document.querySelector('form').addEventListener('submit', async function (event) {
+      event.preventDefault(); // Prevent the form from changing the URL
+
+      const toolSelected = document.querySelector('input[name="tool"]:checked');
+      const fileInput = document.getElementById('zipfile');
+      const submitType = document.querySelector('input[name="submit"]:checked');
+      const statusSpan = document.getElementById('status');
+      const downloadButton = document.getElementById('downloadButton');
+
+      // Reset status and download button on each submission
+      statusSpan.textContent = "Idle";
+      downloadButton.disabled = true;
+      downloadButton.dataset.downloadUrl = "";
+      downloadButton.dataset.filename = "";
+
+      if (!toolSelected) {
+        alert('Please select a tool.');
+        return;
+      }
+
+      if (!fileInput.files.length) {
+        alert('Please select a zip file.');
+        return;
+      }
+
+      const file = fileInput.files[0];
+
+      try {
+        statusSpan.textContent = "Status: Reading file...";
+
+        // Wait for the file to be read as binary data
+        const fileData = await readFileAsArrayBuffer(file);
+        console.log("binary data", fileData);
+
+        statusSpan.textContent = "Status: Sending to job server / running...";
+
+        // Define the endpoint based on the selected tool and submission type
+        var endpoint = "/tools/" + toolSelected.value + "/" + submitType.value;
+
+        // Send the binary data to the endpoint and get the binary response
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/octet-stream", // Indicate binary data
+          },
+          body: fileData, // Send the binary data directly
+        });
+
+        if (!response.ok) {
+          console.error("Server error:", response.statusText);
+          statusSpan.textContent = "Status: Error during processing.";
+          alert("Failed to process the file. Please try again.");
+          return;
+        }
+
+        statusSpan.textContent = "Status: Downloading processed file...";
+
+        // Get the binary data from the response
+        const blob = await response.blob();
+
+        // Create a URL for the blob and store it for the download button
+        const downloadUrl = URL.createObjectURL(blob);
+        downloadButton.dataset.downloadUrl = downloadUrl;
+        downloadButton.dataset.filename = "result.zip";
+        downloadButton.disabled = false; // Enable the download button
+
+        statusSpan.textContent = "Status: Complete! Ready to download.";
+        console.log("File downloaded successfully.");
+      } catch (error) {
+        console.error("Error:", error);
+        statusSpan.textContent = "Status: Error during processing.";
+        alert('There was an error processing the file.');
+      }
+    });
+
+    // Helper function to read the file as ArrayBuffer
+    function readFileAsArrayBuffer(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target.result);
+        reader.onerror = (e) => reject(e);
+        reader.readAsArrayBuffer(file);
+      });
+    }
+
+    // Download button click handler
+    document.getElementById('downloadButton').addEventListener('click', function () {
+      const downloadUrl = this.dataset.downloadUrl;
+      const filename = this.dataset.filename;
+
+      if (downloadUrl) {
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link); // Clean up the DOM
+      }
+    });
+  </script>
+</body>
+
+</html>
