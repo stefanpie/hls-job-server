@@ -8,10 +8,14 @@ dependencies = ["flask>=3.1.0"]
 
 
 [project.scripts]
-hls = "hls_job_server.main:cli"
+hls-job-server = "hls_job_server.main:cli"
 
 [build-system]
 requires = ["setuptools"]
+
+# mathc the packages in the src directory
+[tool.setuptools]
+packages = ["hls_job_server"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
