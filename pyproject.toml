@@ -3,6 +3,7 @@ name = "hls-job-server"
 version = "0.1.0"
 description = "A job server for running High Level Synthesis tools"
 readme = "README.md"
+license = { file = "LICENSE" }
 requires-python = ">=3.11"
 dependencies = ["flask>=3.1.0"]
 
